@@ -4,54 +4,77 @@
   become: true
   tasks:
 
+    # Install dependencies
+    - name: Update package cache
+      apt:
+        update_cache: yes
+
+    # Install Java
+    - name: Install OpenJDK 17
+      apt:
+        name: openjdk-17-jdk
+        state: present
+
+    # Install Maven
+    - name: Install Maven
+      apt:
+        name: maven
+        state: present
+
+    # Install MySQL
+    - name: Install MySQL Server
+      apt:
+        name: mysql-server
+        state: present
+
+    - name: Start and enable MySQL Service
+      service:
+        name: mysql
+        state: started
+        enabled: yes
+
     # Install Tomcat
     - name: Download Tomcat 8
       get_url:
         url: https://archive.apache.org/dist/tomcat/tomcat-8/v8.5.88/bin/apache-tomcat-8.5.88.tar.gz
-        dest: /opt/
-    
+        dest: /opt/apache-tomcat-8.5.88.tar.gz
+
     - name: Extract Tomcat
       unarchive:
         src: /opt/apache-tomcat-8.5.88.tar.gz
         dest: /opt/
         remote_src: yes
 
-    - name: Copy tomcat-users.xml  
-      copy:
-        src: /home/ubuntu/tomcat-users.xml
-        dest: /opt/apache-tomcat-8.5.88/conf/tomcat-users.xml
+    - name: Set permissions for Tomcat
+      file:
+        path: /opt/apache-tomcat-8.5.88
+        owner: root
+        group: root
+        mode: '0755'
+        recurse: yes
 
-    - name: Make Tomcat executable
+    - name: Configure Tomcat users
+      copy:
+        dest: /opt/apache-tomcat-8.5.88/conf/tomcat-users.xml
+        content: |
+          <tomcat-users>
+            <role rolename="manager-gui"/>
+            <user username="tomcatmgr" password="tomcatmgr" roles="manager-gui"/>
+          </tomcat-users>
+
+    - name: Configure Tomcat manager access
+      copy:
+        dest: /opt/apache-tomcat-8.5.88/conf/Catalina/localhost/manager.xml
+        content: |
+          <Context privileged="true" antiResourceLocking="false"
+                   docBase="${catalina.home}/webapps/manager">
+            <Valve className="org.apache.catalina.valves.RemoteAddrValve" allow="^.*$" />
+          </Context>
+
+    - name: Make Tomcat scripts executable
       file:
         path: /opt/apache-tomcat-8.5.88/bin/catalina.sh
         mode: '0755'
 
     - name: Start Tomcat
       shell: nohup /opt/apache-tomcat-8.5.88/bin/startup.sh &
-
-    # Install MySQL
-    - name: Install MySQL Server
-      apt:
-        name: mysql-server
-        state: latest
-        update_cache: yes
-    
-    - name: Start MySQL Service
-      service:
-        name: mysql
-        state: started
-        enabled: yes
-
-    # Install Java
-    - name: Install OpenJDK 17
-      apt:
-        name: openjdk-17-jdk
-        state: latest
-        update_cache: yes
-
-    # Install Maven
-    - name: Install Maven
-      apt:
-        name: maven
-        state: latest
-        update_cache: yes
