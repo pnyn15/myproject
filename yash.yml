@@ -21,11 +21,6 @@
         src: /home/ubuntu/tomcat-users.xml
         dest: /opt/apache-tomcat-8.5.88/conf/tomcat-users.xml
 
-    - name: Copy manager.xml
-      copy:
-        src: /home/ubuntu/manager.xml
-        dest: /opt/apache-tomcat-8.5.88/conf/Catalina/localhost/manager.xml
-
     - name: Make Tomcat executable
       file:
         path: /opt/apache-tomcat-8.5.88/bin/catalina.sh
