@@ -384,5 +384,5 @@ variable "instance_type" {
 
 variable "key_name" {
     description = "keyname for ec2"
-    default = "ohio"
+    default = "wazir"
 }
