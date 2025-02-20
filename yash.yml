@@ -1,3 +1,4 @@
+
 ---
 - name: Setup Tomcat, MySQL, Java, and Maven
   hosts: prod
@@ -132,4 +133,3 @@
         name: tomcat
         state: started
         enabled: yes
-
