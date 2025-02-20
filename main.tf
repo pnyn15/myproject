@@ -372,7 +372,7 @@ variable "allocated_storage" {
 }
 variable "instance_ami" {
     description = "ami for all ec2-instances"
-    default = "ami-08c65a248ce71fb2d"
+    default = "ami-0cb91c7de36eed2cb"
     
 }
 
