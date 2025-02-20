@@ -1,62 +1,135 @@
+
 ---
 - name: Setup Tomcat, MySQL, Java, and Maven
   hosts: prod
   become: true
   tasks:
 
-    # Install Tomcat
-    - name: Download Tomcat 8
-      get_url:
-        url: https://archive.apache.org/dist/tomcat/tomcat-8/v8.5.88/bin/apache-tomcat-8.5.88.tar.gz
-        dest: /opt/
-    
-    - name: Extract Tomcat
-      unarchive:
-        src: /opt/apache-tomcat-8.5.88.tar.gz
-        dest: /opt/
-        remote_src: yes
-
-    - name: Copy tomcat-users.xml  
-      copy:
-        src: /home/ubuntu/tomcat-users.xml
-        dest: /opt/apache-tomcat-8.5.88/conf/tomcat-users.xml
-
-    - name: Copy manager.xml
-      copy:
-        src: /home/ubuntu/manager.xml
-        dest: /opt/apache-tomcat-8.5.88/conf/Catalina/localhost/manager.xml
-
-    - name: Make Tomcat executable
-      file:
-        path: /opt/apache-tomcat-8.5.88/bin/catalina.sh
-        mode: '0755'
-
-    - name: Start Tomcat
-      shell: nohup /opt/apache-tomcat-8.5.88/bin/startup.sh &
-
-    # Install MySQL
-    - name: Install MySQL Server
+    # Install dependencies
+    - name: Update package cache
       apt:
-        name: mysql-server
-        state: latest
         update_cache: yes
-    
-    - name: Start MySQL Service
-      service:
-        name: mysql
-        state: started
-        enabled: yes
 
     # Install Java
     - name: Install OpenJDK 17
       apt:
         name: openjdk-17-jdk
-        state: latest
-        update_cache: yes
+        state: present
 
     # Install Maven
     - name: Install Maven
       apt:
         name: maven
-        state: latest
-        update_cache: yes
+        state: present
+
+    # Install MySQL
+    - name: Install MySQL Server
+      apt:
+        name: mysql-server
+        state: present
+
+    - name: Start and enable MySQL Service
+      service:
+        name: mysql
+        state: started
+        enabled: yes
+
+    # Create Tomcat group and user
+    - name: Create Tomcat group
+      group:
+        name: tomcat
+        state: present
+
+    - name: Create Tomcat user
+      user:
+        name: tomcat
+        group: tomcat
+        home: /opt/tomcat
+        shell: /bin/false
+
+    # Install Tomcat
+    - name: Download Tomcat 8
+      get_url:
+        url: https://archive.apache.org/dist/tomcat/tomcat-8/v8.5.88/bin/apache-tomcat-8.5.88.tar.gz
+        dest: /opt/apache-tomcat-8.5.88.tar.gz
+
+    - name: Extract Tomcat
+      unarchive:
+        src: /opt/apache-tomcat-8.5.88.tar.gz
+        dest: /opt/tomcat
+        remote_src: yes
+
+    - name: Set permissions for Tomcat
+      file:
+        path: /opt/tomcat
+        owner: tomcat
+        group: tomcat
+        mode: '0755'
+        recurse: yes
+
+    - name: Configure Tomcat users
+      copy:
+        dest: /opt/tomcat/conf/tomcat-users.xml
+        content: |
+          <tomcat-users>
+            <role rolename="manager-gui"/>
+            <user username="tomcatmgr" password="tomcatmgr" roles="manager-gui"/>
+          </tomcat-users>
+        owner: tomcat
+        group: tomcat
+        mode: '0644'
+
+    - name: Configure Tomcat manager access
+      copy:
+        dest: /opt/tomcat/conf/Catalina/localhost/manager.xml
+        content: |
+          <Context privileged="true" antiResourceLocking="false"
+                   docBase="${catalina.home}/webapps/manager">
+            <Valve className="org.apache.catalina.valves.RemoteAddrValve" allow="^.*$" />
+          </Context>
+        owner: tomcat
+        group: tomcat
+        mode: '0644'
+
+    - name: Make Tomcat scripts executable
+      file:
+        path: /opt/tomcat/bin/catalina.sh
+        mode: '0755'
+        owner: tomcat
+        group: tomcat
+
+    # Configure systemd service for Tomcat
+    - name: Add Tomcat systemd service file
+      copy:
+        dest: /etc/systemd/system/tomcat.service
+        content: |
+          [Unit]
+          Description=Apache Tomcat Web Application Container
+          After=network.target
+
+          [Service]
+          Type=forking
+          User=tomcat
+          Group=tomcat
+          Environment="JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64"
+          Environment="CATALINA_BASE=/opt/tomcat"
+          Environment="CATALINA_HOME=/opt/tomcat"
+          Environment="CATALINA_PID=/opt/tomcat/temp/tomcat.pid"
+          Environment="JAVA_OPTS=-Djava.security.egd=file:///dev/urandom -Djava.awt.headless=true"
+          Environment="CATALINA_OPTS=-Xms512M -Xmx1024M -server -XX:+UseParallelGC"
+          ExecStart=/opt/tomcat/bin/startup.sh
+          ExecStop=/opt/tomcat/bin/shutdown.sh
+
+          [Install]
+          WantedBy=multi-user.target
+      mode: '0644'
+
+    # Reload systemd and start Tomcat
+    - name: Reload systemd daemon
+      command: systemctl daemon-reload
+
+    - name: Start and enable Tomcat service
+      service:
+        name: tomcat
+        state: started
+        enabled: yes
